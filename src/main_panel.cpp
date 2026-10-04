@@ -44,7 +44,7 @@ MainPanel::MainPanel(KWebSocketClient &websocket,
   , system_tab(lv_tabview_add_tab(tabview, COG_SYMBOL))
   , system_panel(lock, system_tab)
   , main_cont(create_screen(main_tab))  // fills the tab: it is the page
-  , print_status_panel(websocket, lock, sb, main_cont)
+  , print_status_panel(websocket, lock, sb)
   , print_panel(ws, lock, print_status_panel)
   , numpad(Numpad(main_cont))
   , extruder_panel(ws, lock, numpad, sm)
@@ -317,10 +317,6 @@ void MainPanel::create_main(lv_obj_t * parent) {
   // The chart is the last child of the readout column, half its height; the
   // rows above share the other half, for any number of sensors.
   lv_obj_set_parent(temp_chart_box, temp_cont);
-  // while printing, the status chip is the first row of the column (it is
-  // hidden otherwise, and flex skips hidden children)
-  lv_obj_set_parent(print_status_panel.get_mini_status(), temp_cont);
-  lv_obj_move_to_index(print_status_panel.get_mini_status(), 0);
 
   // the temperature popout covers the tile column, from the column gap out
   lv_obj_update_layout(main_cont);
@@ -341,8 +337,7 @@ void MainPanel::create_main(lv_obj_t * parent) {
   lv_obj_set_width(temp_chart_box, LV_PCT(100));
   // the chart and the readout rows share the column by flex weight: the chart
   // weighs as much as all the rows together (set in create_sensors), so it is
-  // half the column when idle and everything shrinks together when the print
-  // status chip joins the column
+  // half the column
   lv_obj_set_height(temp_chart_box, 0);
   lv_obj_set_flex_grow(temp_chart_box, 1);
   // room for the tick labels, which lv_chart draws to the left of the plot

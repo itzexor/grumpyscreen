@@ -7,7 +7,6 @@
 #include "exclude_object_panel.h"
 #include "image_label.h"
 #include "finetune_panel.h"
-#include "mini_print_status.h"
 #include "status_bar.h"
 #include "lvgl/lvgl.h"
 
@@ -17,7 +16,7 @@
 
 class PrintStatusPanel : public NotifyConsumer {
  public:
-  PrintStatusPanel(KWebSocketClient &ws, std::mutex &lock, StatusBar &sb, lv_obj_t *mini_parent);
+  PrintStatusPanel(KWebSocketClient &ws, std::mutex &lock, StatusBar &sb);
   ~PrintStatusPanel();
 
   void init(json &fans);
@@ -43,15 +42,12 @@ class PrintStatusPanel : public NotifyConsumer {
   int current_layer(json &info);
 
   FineTunePanel &get_finetune_panel();
-  // the small printing chip shown on the main tab
-  lv_obj_t *get_mini_status() { return mini_print_status.get_container(); }
 
  private:
   KWebSocketClient &ws;
   StatusBar &status_bar;
   FineTunePanel finetune_panel;
   ExcludeObjectPanel exclude_object_panel;
-  MiniPrintStatus mini_print_status;
   lv_obj_t *status_cont;
   lv_obj_t *buttons_cont;
   ButtonContainer finetune_btn;
@@ -65,7 +61,6 @@ class PrintStatusPanel : public NotifyConsumer {
   lv_obj_t *thumbnail;
   lv_obj_t *pbar_cont;
   lv_obj_t *progress_bar;
-  lv_obj_t *progress_label;
   lv_obj_t *detail_cont;
 
   ImageLabel extruder_temp;

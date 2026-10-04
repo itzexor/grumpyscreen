@@ -17,14 +17,12 @@ double pi() { return std::atan(1)*4; }
 
 PrintStatusPanel::PrintStatusPanel(KWebSocketClient &websocket_client,
 				   std::mutex &lock,
-				   StatusBar &sb,
-				   lv_obj_t *mini_parent)
+				   StatusBar &sb)
   : NotifyConsumer(lock)
   , ws(websocket_client)
   , status_bar(sb)
   , finetune_panel(websocket_client, lock)
   , exclude_object_panel(websocket_client, lock)
-  , mini_print_status(mini_parent, &PrintStatusPanel::_handle_callback, this)
   , status_cont(lv_obj_create(lv_scr_act()))
   , buttons_cont(lv_obj_create(status_cont))
   , finetune_btn(buttons_cont, Icons::FINE_TUNE_IMG, "Fine Tune", &PrintStatusPanel::_handle_callback, this)
@@ -41,7 +39,6 @@ PrintStatusPanel::PrintStatusPanel(KWebSocketClient &websocket_client,
   , thumbnail(lv_img_create(thumbnail_cont))
   , pbar_cont(lv_obj_create(thumbnail_cont))
   , progress_bar(lv_bar_create(pbar_cont))
-  , progress_label(lv_label_create(pbar_cont))
   , detail_cont(lv_obj_create(status_cont))
   , extruder_temp(detail_cont, Icons::EXTRUDER, "20")
   , bed_temp(detail_cont, Icons::BED, "21")
@@ -107,17 +104,13 @@ PrintStatusPanel::PrintStatusPanel(KWebSocketClient &websocket_client,
     lv_obj_set_flex_grow(b->get_container(), 1);
   }
 
-  // the progress bar spans the preview column with its percentage drawn on
-  // it; the box has the bar's height so the centred label measures as nothing
+  // the progress bar spans the preview column; the percentage is on the
+  // status bar, along with the file and the time left
   lv_obj_add_style(pbar_cont, &styles().row, 0);
   lv_obj_set_size(pbar_cont, LV_PCT(100), scale_r(18));
   lv_obj_set_style_pad_hor(pbar_cont, gap(), 0);  // the bar is not flush with the screen edges
   lv_obj_set_size(progress_bar, LV_PCT(100), LV_PCT(100));
   lv_bar_set_value(progress_bar, 0, LV_ANIM_OFF);
-
-  lv_label_set_text(progress_label, "0%");
-  lv_obj_set_style_text_font(progress_label, scale_font(12), 0);
-  lv_obj_center(progress_label);
 
   // the preview is a REAL-size image: its box is its drawn size, so the flex
   // column centres it and stacks the bar under it without any pivot or box
@@ -175,7 +168,6 @@ bool PrintStatusPanel::is_foreground() const {
 
 void PrintStatusPanel::reset() {
   lv_bar_set_value(progress_bar, 0, LV_ANIM_OFF);
-  lv_label_set_text(progress_label, "0%");
   print_speed.update_label("0 mm/s");
   flow_rate.update_label("0.0 mm3/s");
   elapsed.update_label("0s");
@@ -191,8 +183,6 @@ void PrintStatusPanel::reset() {
   lv_obj_add_flag(thumbnail, LV_OBJ_FLAG_HIDDEN);
   lv_img_set_src(thumbnail, NULL);
 
-  mini_print_status.reset();
-  mini_print_status.hide();
   status_bar.reset_print();
 }
 
@@ -223,16 +213,8 @@ void PrintStatusPanel::init(json &fan_cfgs) {
   populate();
   json &pstat_state = State::get_instance()->get_data("/printer_state/print_stats/state"_json_pointer);
   if (!pstat_state.is_null()) {
-    auto pstatus = pstat_state.template get<std::string>();
-    if (pstatus != "printing" && pstatus != "paused") {
-      mini_print_status.hide();
-    } else {
-      mini_print_status.show();
-    }
-    mini_print_status.update_status(pstatus);
-    status_bar.set_print_state(pstatus);
+    status_bar.set_print_state(pstat_state.template get<std::string>());
   } else {
-    mini_print_status.hide();
     status_bar.set_print_state("");
   }
 }
@@ -248,7 +230,6 @@ void PrintStatusPanel::populate() {
       ws.send_jsonrpc("server.files.metadata", fname_input,
 		      [fname, this](json &d) { this->handle_metadata(fname, d); });
 
-      mini_print_status.show();
       status_bar.set_print_file(fname);
     }
   }
@@ -266,8 +247,6 @@ void PrintStatusPanel::populate() {
   if (!v.is_null()) {
     int new_value = static_cast<int>(v.template get<double>() * 100);
     lv_bar_set_value(progress_bar, new_value, LV_ANIM_ON);
-    lv_label_set_text(progress_label, fmt::format("{}%", new_value).c_str());
-    mini_print_status.update_progress(new_value);
     status_bar.set_print_progress(new_value);
   }
 
@@ -317,7 +296,6 @@ void PrintStatusPanel::handle_metadata(const std::string &gcode_file, json &j) {
     const int avail_h = lv_obj_get_content_height(thumbnail_cont) - lv_obj_get_height(pbar_cont)
                         - lv_obj_get_style_pad_row(thumbnail_cont, 0);
     fit_img(thumbnail, avail_w, avail_h, 2 * LV_IMG_ZOOM_NONE);
-    mini_print_status.update_img(img_path, thumb_detail.second);
   }
 }
 
@@ -336,15 +314,9 @@ void PrintStatusPanel::consume(json &j) {
   if (!pstate.is_null()) {
     auto print_status = pstate.template get<std::string>();
 
-    if (print_status != "printing" && print_status != "paused") {
-      mini_print_status.hide();
-      if (print_status != "standby") {
-        background();
-      }
-    } else {
-      mini_print_status.show();
+    if (print_status != "printing" && print_status != "paused" && print_status != "standby") {
+      background();
     }
-    mini_print_status.update_status(print_status);
     status_bar.set_print_state(print_status);
   }
 
@@ -433,8 +405,6 @@ void PrintStatusPanel::consume(json &j) {
   if (!v.is_null()) {
     int new_value = static_cast<int>(v.template get<double>() * 100);
     lv_bar_set_value(progress_bar, new_value, LV_ANIM_ON);
-    lv_label_set_text(progress_label, fmt::format("{}%", new_value).c_str());
-    mini_print_status.update_progress(new_value);
     status_bar.set_print_progress(new_value);
   }
 
@@ -487,8 +457,6 @@ void PrintStatusPanel::handle_callback(lv_event_t *event) {
     finetune_panel.foreground();
   } else if (btn == objects_btn.get_container()) {
     exclude_object_panel.foreground();
-  } else if (btn == mini_print_status.get_container()) {
-    foreground();
   }
 }
 
@@ -501,7 +469,6 @@ void PrintStatusPanel::update_time_progress(uint32_t time_passed) {
     } else {
       auto eta_str = KUtils::eta_string(remaining);
       time_left.update_label(eta_str.c_str());
-      mini_print_status.update_eta(eta_str);
       status_bar.set_print_eta(eta_str);
     }
 
