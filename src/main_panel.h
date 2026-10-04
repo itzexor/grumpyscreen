@@ -118,6 +118,8 @@ class MainPanel : public NotifyConsumer {
   lv_obj_t *system_tab;
   SystemPanel system_panel;
   lv_obj_t *main_cont;
+  // laid over the home tab while Klipper is not ready, to grey it out
+  lv_obj_t *not_ready_veil;
   PrintStatusPanel print_status_panel;
   PrintPanel print_panel;
   Numpad numpad;

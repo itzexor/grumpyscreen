@@ -44,6 +44,7 @@ MainPanel::MainPanel(KWebSocketClient &websocket,
   , system_tab(lv_tabview_add_tab(tabview, COG_SYMBOL))
   , system_panel(lock, system_tab)
   , main_cont(create_screen(main_tab))  // fills the tab: it is the page
+  , not_ready_veil(NULL)
   , print_status_panel(websocket, lock, sb)
   , print_panel(ws, lock, print_status_panel)
   , numpad(Numpad(main_cont))
@@ -84,7 +85,9 @@ MainPanel::~MainPanel() {
 }
 
 void MainPanel::set_ready(bool ready) {
-  lv_obj_set_style_opa(main_tab, ready ? LV_OPA_COVER : LV_OPA_40, 0);
+  if (not_ready_veil == NULL) return;
+  if (ready) lv_obj_add_flag(not_ready_veil, LV_OBJ_FLAG_HIDDEN);
+  else lv_obj_clear_flag(not_ready_veil, LV_OBJ_FLAG_HIDDEN);
 }
 
 void MainPanel::report(const std::string &message) {
@@ -239,6 +242,20 @@ void MainPanel::create_panel() {
   }
 
   create_main(main_tab);
+
+  // Greyed out by a sheet of the page colour laid over the tab, not by the
+  // tab's own opa: an opa below cover renders the whole tab through an
+  // intermediate layer, which is slow on the printers and picked up stray
+  // pixels from the status bar's spinner. Taps go through it, as they always
+  // have to the home tab.
+  not_ready_veil = lv_obj_create(main_tab);
+  lv_obj_add_style(not_ready_veil, &styles().row, 0);
+  lv_obj_add_flag(not_ready_veil, LV_OBJ_FLAG_FLOATING);
+  lv_obj_clear_flag(not_ready_veil, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_clear_flag(not_ready_veil, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_size(not_ready_veil, LV_PCT(100), LV_PCT(100));
+  lv_obj_set_style_bg_color(not_ready_veil, col(BG), 0);
+  lv_obj_set_style_bg_opa(not_ready_veil, LV_OPA_60, 0);
   set_ready(false);  // until Klipper says otherwise
 }
 
