@@ -16,6 +16,9 @@ class ConsolePanel {
   lv_obj_t *get_container();
   void foreground();
   void handle_macro_response(json &d);
+  // a Klipper error or shutdown message, one "!! " line per line, the way
+  // Klipper reports its own errors
+  void report(const std::string &message);
   void handle_delete_btn(lv_event_t *event);
   void handle_input(lv_event_t *event);
 

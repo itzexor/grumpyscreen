@@ -33,7 +33,8 @@ KWebSocketClient GuppyScreen::ws(NULL);
 std::mutex GuppyScreen::lv_lock;
 
 GuppyScreen::GuppyScreen()
-  : spoolman_panel(ws, lv_lock)
+  : status_bar(lv_scr_act())
+  , spoolman_panel(ws, lv_lock)
   , mmu_panel(MmuPanel::enabled() ? std::make_unique<MmuPanel>(ws, lv_lock) : nullptr)
 #ifdef MMU_BACKEND_AFC
   , afc_backend(mmu_panel != nullptr ? std::make_unique<AfcBackend>(ws) : nullptr)
@@ -41,8 +42,8 @@ GuppyScreen::GuppyScreen()
 #ifdef MMU_BACKEND_HH
   , hh_backend(mmu_panel != nullptr ? std::make_unique<HhBackend>(ws) : nullptr)
 #endif
-  , main_panel(ws, lv_lock, spoolman_panel, mmu_panel.get())
-  , init_panel(main_panel, lv_lock)
+  , main_panel(ws, lv_lock, status_bar, spoolman_panel, mmu_panel.get())
+  , init_panel(main_panel, status_bar, lv_lock)
 {
   // the ids here are the values accepted by /mmu/backend
   if (mmu_panel == nullptr) {
@@ -120,7 +121,10 @@ GuppyScreen *GuppyScreen::init(std::function<void(lv_color_t, lv_color_t)> hal_i
 
   screen_saver = lv_obj_create(lv_scr_act());
 
-  lv_obj_set_size(screen_saver, LV_PCT(100), LV_PCT(100));
+  // the whole display, the status bar too: the screen's content area starts
+  // under the bar, so reach up over it
+  lv_obj_set_pos(screen_saver, 0, -Theme::status_bar_h());
+  lv_obj_set_size(screen_saver, LV_PCT(100), lv_disp_get_physical_ver_res(NULL));
   lv_obj_set_style_bg_opa(screen_saver, LV_OPA_100, 0);
 #ifdef GUPPY_SDL
   lv_obj_set_style_bg_color(screen_saver, lv_color_black(), 0);
@@ -215,7 +219,7 @@ std::mutex &GuppyScreen::get_lock() {
 }
 
 void GuppyScreen::connect_ws(const std::string &url) {
-  init_panel.set_message(LV_SYMBOL_WARNING " Waiting for Klipper to start...");
+  status_bar.set_klipper(StatusBar::Klipper::OFFLINE);
   ws.connect(url.c_str(),
    [this]() { init_panel.connected(ws); },
    [this]() { init_panel.disconnected(ws); });

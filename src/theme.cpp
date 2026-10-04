@@ -60,6 +60,8 @@ lv_color_t col(Colour c) {
     cache[ON_PRIMARY] = lv_color_white();
     cache[DANGER]     = lv_palette_darken(LV_PALETTE_RED, 2);
     cache[WARNING]    = lv_palette_darken(LV_PALETTE_AMBER, 2);
+    cache[GOOD]       = lv_palette_darken(LV_PALETTE_GREEN, 1);
+    cache[CHROME]     = lv_color_darken(cache[BG], LV_OPA_20);
     ready = true;
   }
   return cache[c];
@@ -107,10 +109,13 @@ int radius_sm() { return scale_r(modern() ? 4 : 7); }  // buttons, keys, tiles, 
 int radius_md() { return scale_r(modern() ? 6 : 5); }  // cards, entries, key trays
 int radius_lg() { return modern() ? scale_r(8) : radius_md(); }  // panels, popout boxes
 
+int status_bar_h() { return scale_r(20); }
+int screen_h() { return lv_disp_get_physical_ver_res(NULL) - status_bar_h(); }
+
 // a popout sits one gap in from every screen edge and pads its content by a
 // gap and a half, so the whole thing follows gap()
 int popout_w() { return lv_disp_get_physical_hor_res(NULL) - 2 * gap(); }
-int popout_max_h() { return lv_disp_get_physical_ver_res(NULL) - 2 * gap(); }
+int popout_max_h() { return screen_h() - 2 * gap(); }
 int popout_pad() { return gap() + gap() / 2; }
 // box padding, the two borders, and 2px so integer rounding cannot wrap a row
 int popout_row_w() { return popout_w() - 2 * popout_pad() - 2 * border_w() - 2; }

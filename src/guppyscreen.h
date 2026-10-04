@@ -13,6 +13,7 @@
 #include "lvgl/lvgl.h"
 
 #include "platform.h"
+#include "status_bar.h"
 #include "init_panel.h"
 #include "main_panel.h"
 #include "spoolman_panel.h"
@@ -35,6 +36,8 @@ class GuppyScreen {
   static lv_obj_t *screen_saver;
   static std::mutex lv_lock;
   static KWebSocketClient ws;
+  // first, so the screen has given up its top strip before any panel is laid out
+  StatusBar status_bar;
   SpoolmanPanel spoolman_panel;
   std::unique_ptr<MmuPanel> mmu_panel;
 #ifdef MMU_BACKEND_AFC

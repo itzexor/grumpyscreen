@@ -18,6 +18,7 @@
 #include "print_status_panel.h"
 #include "spoolman_panel.h"
 #include "mmu_panel.h"
+#include "status_bar.h"
 #include "lvgl/lvgl.h"
 
 #include <mutex>
@@ -28,6 +29,7 @@ class MainPanel : public NotifyConsumer {
  public:
   MainPanel(KWebSocketClient &ws,
 	    std::mutex &lv_lock,
+	    StatusBar &sb,
 	    SpoolmanPanel &sm,
 	    MmuPanel *mmu);
 
@@ -39,6 +41,12 @@ class MainPanel : public NotifyConsumer {
   void enable_mmu();
   void disable_mmu();
   MmuPanel *mmu() { return mmu_panel; }
+  // the home tab is greyed out while Klipper is not ready
+  void set_ready(bool ready);
+  // a Klipper error or shutdown message, in full, for the console
+  void report(const std::string &message);
+  // bring the console tab to the front, over any panel open on top of the tabs
+  void show_console();
   
   void create_panel();
   void create_sensors(json &temp_sensors);

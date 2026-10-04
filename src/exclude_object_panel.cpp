@@ -51,7 +51,7 @@ namespace {
 
   lv_coord_t calc_canvas_dim() {
     const lv_coord_t content_w = lv_disp_get_physical_hor_res(NULL) - 2 * gap();
-    const lv_coord_t content_h = lv_disp_get_physical_ver_res(NULL) - 2 * gap();
+    const lv_coord_t content_h = screen_h() - 2 * gap();
     const lv_coord_t legend_min = scale_w(190);  // its longest line, at the design size
     const lv_coord_t frame = 2 * plate_border();
     return std::min<lv_coord_t>(content_h - frame, content_w - legend_min - gap() - frame);

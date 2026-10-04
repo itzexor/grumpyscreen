@@ -17,9 +17,11 @@ double pi() { return std::atan(1)*4; }
 
 PrintStatusPanel::PrintStatusPanel(KWebSocketClient &websocket_client,
 				   std::mutex &lock,
+				   StatusBar &sb,
 				   lv_obj_t *mini_parent)
   : NotifyConsumer(lock)
   , ws(websocket_client)
+  , status_bar(sb)
   , finetune_panel(websocket_client, lock)
   , exclude_object_panel(websocket_client, lock)
   , mini_print_status(mini_parent, &PrintStatusPanel::_handle_callback, this)
@@ -157,11 +159,13 @@ void PrintStatusPanel::foreground() {
     resume_btn.enable();
   }
   is_foreground_ = true;
+  status_bar.set_print_shown(true);
   lv_obj_move_foreground(status_cont);
 }
 
 void PrintStatusPanel::background() {
   is_foreground_ = false;
+  status_bar.set_print_shown(false);
   lv_obj_move_background(status_cont);
 }
 
@@ -189,6 +193,7 @@ void PrintStatusPanel::reset() {
 
   mini_print_status.reset();
   mini_print_status.hide();
+  status_bar.reset_print();
 }
 
 void PrintStatusPanel::init(json &fan_cfgs) {
@@ -225,8 +230,10 @@ void PrintStatusPanel::init(json &fan_cfgs) {
       mini_print_status.show();
     }
     mini_print_status.update_status(pstatus);
+    status_bar.set_print_state(pstatus);
   } else {
     mini_print_status.hide();
+    status_bar.set_print_state("");
   }
 }
 
@@ -242,6 +249,7 @@ void PrintStatusPanel::populate() {
 		      [fname, this](json &d) { this->handle_metadata(fname, d); });
 
       mini_print_status.show();
+      status_bar.set_print_file(fname);
     }
   }
 
@@ -260,6 +268,7 @@ void PrintStatusPanel::populate() {
     lv_bar_set_value(progress_bar, new_value, LV_ANIM_ON);
     lv_label_set_text(progress_label, fmt::format("{}%", new_value).c_str());
     mini_print_status.update_progress(new_value);
+    status_bar.set_print_progress(new_value);
   }
 
   v = s->get_data("/printer_state/gcode_move/homing_origin/2"_json_pointer);
@@ -336,6 +345,7 @@ void PrintStatusPanel::consume(json &j) {
       mini_print_status.show();
     }
     mini_print_status.update_status(print_status);
+    status_bar.set_print_state(print_status);
   }
 
   auto v = j["/params/0/extruder/target"_json_pointer];
@@ -425,6 +435,7 @@ void PrintStatusPanel::consume(json &j) {
     lv_bar_set_value(progress_bar, new_value, LV_ANIM_ON);
     lv_label_set_text(progress_label, fmt::format("{}%", new_value).c_str());
     mini_print_status.update_progress(new_value);
+    status_bar.set_print_progress(new_value);
   }
 
   v = j["/params/0/motion_report/live_extruder_velocity"_json_pointer];
@@ -486,10 +497,12 @@ void PrintStatusPanel::update_time_progress(uint32_t time_passed) {
     if (remaining < 0) {
       // XXX: better estimate
       time_left.update_label("...");
+      status_bar.set_print_eta("");
     } else {
       auto eta_str = KUtils::eta_string(remaining);
       time_left.update_label(eta_str.c_str());
       mini_print_status.update_eta(eta_str);
+      status_bar.set_print_eta(eta_str);
     }
 
     elapsed.update_label(KUtils::eta_string(time_passed).c_str());

@@ -11,34 +11,23 @@ using namespace Theme;
 #include <algorithm>
 #include <cstdio>
 
-InitPanel::InitPanel(MainPanel &mp, std::mutex& l)
-  : cont(lv_obj_create(lv_scr_act()))
-  , label(lv_label_create(cont))
-  , main_panel(mp)
+InitPanel::InitPanel(MainPanel &mp, StatusBar &sb, std::mutex& l)
+  : main_panel(mp)
+  , status_bar(sb)
   , lv_lock(l)
+  , poll_timer(INVALID_TIMER_ID)
+  , ready(false)
 {
-  // a centred notice card; the label wraps inside it if a message runs long
-  lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_style(cont, &styles().panel, 0);
-  // the system-is-not-ready notice, so it wears the not-ready colour
-  lv_obj_set_style_bg_color(cont, col(DISABLED), 0);
-  lv_obj_set_size(cont, scale_w(264), LV_SIZE_CONTENT);
-  lv_obj_center(cont);
-
-  lv_obj_set_width(label, LV_PCT(100));
-  lv_label_set_text(label, LV_SYMBOL_WARNING " Waiting for Klipper to start...");
-  lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
 }
 
 InitPanel::~InitPanel() {
-  if (cont != NULL) {
-    lv_obj_del(cont);
-    cont = NULL;
-  }
 }
 
 void InitPanel::connected(KWebSocketClient &ws) {
   LOG_DEBUG("init panel connected");
+  show_state(StatusBar::Klipper::STARTING, "");
+  start_polling(ws);
+
   State *state = State::get_instance();
   state->reset();
 
@@ -113,13 +102,16 @@ void InitPanel::connected(KWebSocketClient &ws) {
         if (get_log_level() <= LogLevel::DEBUG) {
           LOG_DEBUG("subscribing to {}", subs.dump());
         }
-        ws.send_jsonrpc("printer.objects.subscribe", subs, [this](json &data) {
+        ws.send_jsonrpc("printer.objects.subscribe", subs, [this, &ws](json &data) {
           State::get_instance()->set_data("printer_state", data, "/result/status");
           this->main_panel.init(data);
           LOG_DEBUG("done init");
+          stop_polling(ws);
           std::lock_guard<std::mutex> lock(this->lv_lock);
-          lv_obj_add_flag(this->cont, LV_OBJ_FLAG_HIDDEN);
-          lv_obj_move_background(this->cont);
+          ready = true;
+          reported.clear();
+          status_bar.set_klipper(StatusBar::Klipper::READY);
+          main_panel.set_ready(true);
         });
       });
     }
@@ -128,12 +120,70 @@ void InitPanel::connected(KWebSocketClient &ws) {
 
 void InitPanel::disconnected(KWebSocketClient &ws) {
   LOG_DEBUG("init panel disconnected");
-  std::lock_guard<std::mutex> lock(lv_lock);
-  set_message(LV_SYMBOL_WARNING " Waiting for Klipper to start...");
-  lv_obj_clear_flag(cont, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_move_foreground(cont);
+  const bool moonraker_up = ws.is_open();
+  {
+    std::lock_guard<std::mutex> lock(lv_lock);
+    ready = false;
+    main_panel.set_ready(false);
+    status_bar.set_klipper(moonraker_up ? StatusBar::Klipper::STARTING : StatusBar::Klipper::OFFLINE);
+  }
+
+  if (moonraker_up) {
+    // Klipper went away or stopped: ask now, so a shutdown's reason is on the
+    // bar straight away rather than after the first tick
+    start_polling(ws);
+    poll(ws);
+  } else {
+    stop_polling(ws);
+  }
 }
 
-void InitPanel::set_message(const char *message) {
-	lv_label_set_text(label, message);
+void InitPanel::start_polling(KWebSocketClient &ws) {
+  if (poll_timer != INVALID_TIMER_ID) return;
+  poll_timer = ws.loop()->setInterval(2000, [this, &ws](hv::TimerID) { poll(ws); });
+}
+
+void InitPanel::stop_polling(KWebSocketClient &ws) {
+  if (poll_timer == INVALID_TIMER_ID) return;
+  ws.loop()->killTimer(poll_timer);
+  poll_timer = INVALID_TIMER_ID;
+}
+
+void InitPanel::poll(KWebSocketClient &ws) {
+  ws.send_jsonrpc("server.info", [this, &ws](json &info) {
+    if (!info.value("/result/klippy_connected"_json_pointer, false)) {
+      show_state(StatusBar::Klipper::DISCONNECTED, "");
+      return;
+    }
+
+    // Klipper's own word on its state, and why, from its info endpoint
+    ws.send_jsonrpc("printer.info", [this](json &j) {
+      const std::string state = j.value("/result/state"_json_pointer, std::string());
+      const std::string message = j.value("/result/state_message"_json_pointer, std::string());
+      if (state == "error") {
+        show_state(StatusBar::Klipper::ERROR, message);
+      } else if (state == "shutdown") {
+        show_state(StatusBar::Klipper::SHUTDOWN, message);
+      } else if (state == "startup") {
+        show_state(StatusBar::Klipper::STARTING, "");
+      }
+      // ready: notify_klippy_ready brings the UI up, and the bar with it
+    });
+  });
+}
+
+void InitPanel::show_state(StatusBar::Klipper k, const std::string &message) {
+  std::lock_guard<std::mutex> lock(lv_lock);
+  if (ready) return;
+
+  status_bar.set_klipper(k, message);
+
+  // the bar has room for a line; the whole message goes to the console, once
+  const bool stopped = k == StatusBar::Klipper::ERROR || k == StatusBar::Klipper::SHUTDOWN;
+  if (!stopped) {
+    reported.clear();
+  } else if (!message.empty() && message != reported) {
+    reported = message;
+    main_panel.report(message);
+  }
 }

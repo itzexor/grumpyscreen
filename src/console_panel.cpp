@@ -9,6 +9,7 @@ using namespace Theme;
 
 #include <algorithm>
 #include <cctype>
+#include <sstream>
 
 LV_FONT_DECLARE(dejavusans_mono_14);
 
@@ -154,6 +155,13 @@ void ConsolePanel::handle_macro_response(json &j) {
       }
       ta_add_text_limit_lines(output, v);
     }
+  }
+}
+
+void ConsolePanel::report(const std::string &message) {
+  std::istringstream lines(message);
+  for (std::string line; std::getline(lines, line);) {
+    ta_add_text_limit_lines(output, "!! " + line);
   }
 }
 

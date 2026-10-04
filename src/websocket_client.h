@@ -21,6 +21,10 @@ class KWebSocketClient : public hv::WebSocketClient {
 	      std::function<void()> connected,
 	      std::function<void()> disconnected);
 
+  // the websocket to Moonraker is up; disconnected() is also called for
+  // Klipper going away while this stays true
+  bool is_open() const { return open_; }
+
   void register_notify_update(NotifyConsumer *consumer);
   void unregister_notify_update(NotifyConsumer *consumer);
 
@@ -56,6 +60,7 @@ class KWebSocketClient : public hv::WebSocketClient {
   // method_name : { <unique-name-cb-handler> :handler-cb }
   std::map<std::string, std::map<std::string, std::function<void(json&)>>> method_resp_cbs;
   std::atomic_uint64_t id;
+  std::atomic_bool open_;
 };
 
 #endif //__KWEBSOCKET_CLIENT_H__

@@ -21,6 +21,7 @@ using json = nlohmann::json;
 KWebSocketClient::KWebSocketClient(EventLoopPtr loop)
   : WebSocketClient(loop)
   , id(0)
+  , open_(false)
 {
 }
 
@@ -33,6 +34,7 @@ int KWebSocketClient::connect(const char* url,
   LOG_DEBUG("websocket connecting");
   // set callbacks
   onopen = [this, connected]() {
+    open_ = true;
     const HttpResponsePtr& resp = getHttpResponse();
     LOG_DEBUG("onopen {}", resp->body.c_str());
     connected();
@@ -84,7 +86,8 @@ int KWebSocketClient::connect(const char* url,
     }
   };
 
-  onclose = [disconnected]() {
+  onclose = [this, disconnected]() {
+    open_ = false;
     LOG_DEBUG("onclose");
     disconnected();
   };

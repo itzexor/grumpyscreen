@@ -109,7 +109,7 @@ lv_obj_t *SliderContainer::get_container() {
 }
 
 lv_coord_t SliderContainer::row_height(int n) {
-  const int col_h = lv_disp_get_physical_ver_res(NULL) - 2 * gap();  // a screen root's content height
+  const int col_h = screen_h() - 2 * gap();  // a screen root's content height
   return (n == 2 || n == 3) ? (col_h - (n - 1) * gap()) / n : (col_h - 2 * gap()) / 3;
 }
 

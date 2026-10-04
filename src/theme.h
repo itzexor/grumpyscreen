@@ -64,6 +64,8 @@ enum Colour {
   ON_PRIMARY,  // text and glyphs drawn on the primary colour
   DANGER,      // faults
   WARNING,     // something the user should notice that is not a fault
+  GOOD,        // all is well: the light that says Klipper is ready
+  CHROME,     // the status bar along the top: a step darker than the page
   COLOUR_COUNT
 };
 
@@ -105,6 +107,13 @@ int border_w();
 int radius_sm();  // buttons, swatches
 int radius_md();  // cards
 int radius_lg();  // panels, popout boxes
+
+// The status bar is a strip along the top of the display that nothing covers.
+// The screen and the top layer are padded by its height, so every panel sized
+// in percent lands under it by itself. Anything sized from the display's
+// pixels asks screen_h() for the height it actually has.
+int status_bar_h();
+int screen_h();
 
 // popout boxes span the screen minus one gap on every side, and pad their
 // content by a gap and a half (the popout_box style already applies it)

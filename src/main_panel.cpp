@@ -26,6 +26,7 @@ LV_FONT_DECLARE(materialdesign_font_40);
 
 MainPanel::MainPanel(KWebSocketClient &websocket,
 		     std::mutex &lock,
+		     StatusBar &sb,
 		     SpoolmanPanel &sm,
 		     MmuPanel *mmu)
   : NotifyConsumer(lock)
@@ -43,7 +44,7 @@ MainPanel::MainPanel(KWebSocketClient &websocket,
   , system_tab(lv_tabview_add_tab(tabview, COG_SYMBOL))
   , system_panel(lock, system_tab)
   , main_cont(create_screen(main_tab))  // fills the tab: it is the page
-  , print_status_panel(websocket, lock, main_cont)
+  , print_status_panel(websocket, lock, sb, main_cont)
   , print_panel(ws, lock, print_status_panel)
   , numpad(Numpad(main_cont))
   , extruder_panel(ws, lock, numpad, sm)
@@ -66,6 +67,11 @@ MainPanel::MainPanel(KWebSocketClient &websocket,
 
     lv_obj_add_event_cb(tabview, &MainPanel::_tabview_event_cb,
                             LV_EVENT_VALUE_CHANGED, this);
+
+    // the status bar's pill goes to the running print, or to the console for
+    // the rest of a Klipper error
+    sb.on_print([this]() { print_status_panel.foreground(); });
+    sb.on_details([this]() { show_console(); });
 }
 
 MainPanel::~MainPanel() {
@@ -75,6 +81,22 @@ MainPanel::~MainPanel() {
   }
 
   sensors.clear();
+}
+
+void MainPanel::set_ready(bool ready) {
+  lv_obj_set_style_opa(main_tab, ready ? LV_OPA_COVER : LV_OPA_40, 0);
+}
+
+void MainPanel::report(const std::string &message) {
+  console_panel.report(message);
+}
+
+void MainPanel::show_console() {
+  // panels open over the tabs (the print status, homing, fans...) go behind
+  // them, the way their own Back buttons send them
+  print_status_panel.background();
+  lv_obj_move_foreground(tabview);
+  lv_tabview_set_act(tabview, lv_obj_get_index(console_tab), LV_ANIM_OFF);
 }
 
 void MainPanel::subscribe() {
@@ -217,6 +239,7 @@ void MainPanel::create_panel() {
   }
 
   create_main(main_tab);
+  set_ready(false);  // until Klipper says otherwise
 }
 
 void MainPanel::handle_homing_cb(lv_event_t *event) {
